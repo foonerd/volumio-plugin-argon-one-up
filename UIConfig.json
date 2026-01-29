@@ -12,39 +12,63 @@
       "content": [
         {
           "id": "device_detected",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.DEVICE_STATUS",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "battery_level",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.BATTERY_LEVEL",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "battery_status",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.BATTERY_STATUS",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "cpu_temperature",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.CPU_TEMPERATURE",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "fan_speed",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.FAN_SPEED",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "lid_status",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.LID_STATUS",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "refresh_status",
@@ -448,9 +472,13 @@
       "content": [
         {
           "id": "psu_current_status",
-          "element": "text",
+          "element": "input",
+          "type": "text",
           "label": "TRANSLATE.PSU_CURRENT_STATUS",
-          "value": ""
+          "value": "",
+          "attributes": [
+            {"readonly": true}
+          ]
         },
         {
           "id": "apply_eeprom",

@@ -9,7 +9,7 @@
  * Hardware interfaces:
  * - Battery gauge: I2C 0x64
  * - Fan controller: I2C 0x1a
- * - Power button: GPIO 4
+ * - Power button: GPIO 4 (via dtoverlay for halt-state support)
  * - Lid sensor: GPIO 27
  */
 
@@ -17,6 +17,11 @@ var libQ = require('kew');
 var fs = require('fs-extra');
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
+var gpiox = require('@iiot2k/gpiox');
+
+var USERCONFIG_PATH = '/boot/userconfig.txt';
+var GPIO_LID = 27;
+var GPIO_POWER = 4;
 
 module.exports = ArgonOneUp;
 
@@ -50,6 +55,7 @@ function ArgonOneUp(context) {
     // Lid state
     self.lidClosed = false;
     self.lidShutdownTimer = null;
+    self.lidGpioInitialized = false;
 
     // Monitoring intervals
     self.batteryMonitorInterval = null;
@@ -76,7 +82,14 @@ ArgonOneUp.prototype.onVolumioStart = function() {
     );
 
     self.config = new (require('v-conf'))();
-    self.config.loadFile(configFile);
+    
+    // Check if config file exists
+    if (fs.existsSync(configFile)) {
+        self.config.loadFile(configFile);
+        self.logger.info('ArgonOneUp: Loaded config from ' + configFile);
+    } else {
+        self.logger.warn('ArgonOneUp: Config file not found: ' + configFile);
+    }
 
     return libQ.resolve();
 };
@@ -156,10 +169,45 @@ ArgonOneUp.prototype.onVolumioReboot = function() {
 ArgonOneUp.prototype.loadConfig = function() {
     var self = this;
 
-    self.i2cBus = self.config.get('i2c_bus', 1);
-    self.batteryAddress = parseInt(self.config.get('battery_address', '0x64'), 16);
-    self.fanAddress = parseInt(self.config.get('fan_address', '0x1a'), 16);
-    self.debugLogging = self.config.get('debug_logging', false);
+    // Always use hardcoded defaults first
+    self.i2cBus = 1;
+    self.batteryAddress = 0x64;
+    self.fanAddress = 0x1a;
+    self.debugLogging = false;
+
+    // Try to load from config if available
+    if (self.config) {
+        try {
+            var bus = self.config.get('i2c_bus');
+            var battAddr = self.config.get('battery_address');
+            var fanAddr = self.config.get('fan_address');
+            var debug = self.config.get('debug_logging');
+
+            self.logger.info('ArgonOneUp: Raw config - bus=' + bus + 
+                           ' batt=' + battAddr + ' fan=' + fanAddr);
+
+            if (typeof bus === 'number' && bus > 0) {
+                self.i2cBus = bus;
+            }
+            if (typeof battAddr === 'string' && battAddr.length > 0) {
+                self.batteryAddress = parseInt(battAddr, 16);
+            }
+            if (typeof fanAddr === 'string' && fanAddr.length > 0) {
+                self.fanAddress = parseInt(fanAddr, 16);
+            }
+            if (debug === true) {
+                self.debugLogging = true;
+            }
+        } catch (e) {
+            self.logger.error('ArgonOneUp: Config read error: ' + e.message);
+        }
+    } else {
+        self.logger.warn('ArgonOneUp: No config object, using defaults');
+    }
+
+    self.logger.info('ArgonOneUp: Using - bus=' + self.i2cBus + 
+                    ' battery=0x' + self.batteryAddress.toString(16) +
+                    ' fan=0x' + self.fanAddress.toString(16));
 };
 
 ArgonOneUp.prototype.logDebug = function(msg) {
@@ -177,8 +225,17 @@ ArgonOneUp.prototype.i2cDetect = function(address) {
     var self = this;
     var defer = libQ.defer();
 
-    var cmd = 'sudo i2cdetect -y ' + self.i2cBus + ' 0x' + 
+    // Validate parameters
+    if (typeof self.i2cBus !== 'number' || typeof address !== 'number') {
+        self.logger.error('ArgonOneUp: i2cDetect invalid params bus=' + self.i2cBus + ' addr=' + address);
+        defer.resolve(false);
+        return defer.promise;
+    }
+
+    var cmd = 'sudo /usr/sbin/i2cdetect -y ' + self.i2cBus + ' 0x' + 
               address.toString(16) + ' 0x' + address.toString(16);
+
+    self.logDebug('ArgonOneUp: ' + cmd);
 
     exec(cmd, function(error, stdout, stderr) {
         if (error) {
@@ -198,7 +255,7 @@ ArgonOneUp.prototype.i2cRead = function(address, register) {
     var self = this;
     var defer = libQ.defer();
 
-    var cmd = 'sudo i2cget -y ' + self.i2cBus + ' 0x' +
+    var cmd = 'sudo /usr/sbin/i2cget -y ' + self.i2cBus + ' 0x' +
               address.toString(16) + ' 0x' + register.toString(16);
 
     exec(cmd, function(error, stdout, stderr) {
@@ -218,7 +275,7 @@ ArgonOneUp.prototype.i2cWrite = function(address, register, value) {
     var self = this;
     var defer = libQ.defer();
 
-    var cmd = 'sudo i2cset -y ' + self.i2cBus + ' 0x' +
+    var cmd = 'sudo /usr/sbin/i2cset -y ' + self.i2cBus + ' 0x' +
               address.toString(16) + ' 0x' + register.toString(16) +
               ' 0x' + value.toString(16);
 
@@ -238,7 +295,7 @@ ArgonOneUp.prototype.i2cWriteByte = function(address, value) {
     var self = this;
     var defer = libQ.defer();
 
-    var cmd = 'sudo i2cset -y ' + self.i2cBus + ' 0x' +
+    var cmd = 'sudo /usr/sbin/i2cset -y ' + self.i2cBus + ' 0x' +
               address.toString(16) + ' 0x' + value.toString(16);
 
     exec(cmd, function(error, stdout, stderr) {
@@ -261,25 +318,26 @@ ArgonOneUp.prototype.checkDevices = function() {
     var self = this;
     var defer = libQ.defer();
 
-    // Check for fan controller first (always present on Argon ONE)
+    // Check for fan controller
     self.i2cDetect(self.fanAddress)
         .then(function(found) {
             self.fanFound = found;
-            self.logDebug('ArgonOneUp: Fan controller ' + 
+            self.logger.info('ArgonOneUp: Fan controller ' + 
                          (found ? 'found' : 'not found') + 
                          ' at 0x' + self.fanAddress.toString(16));
             
-            // Check for battery gauge (only on UP version)
+            // Check for battery gauge (identifies UP version)
             return self.i2cDetect(self.batteryAddress);
         })
         .then(function(found) {
             self.batteryFound = found;
-            self.logDebug('ArgonOneUp: Battery gauge ' + 
+            self.logger.info('ArgonOneUp: Battery gauge ' + 
                          (found ? 'found' : 'not found') + 
                          ' at 0x' + self.batteryAddress.toString(16));
             
-            // Device is found if at least fan controller is present
-            self.deviceFound = self.fanFound;
+            // Device is found if battery OR fan controller is present
+            // Battery at 0x64 identifies Argon ONE UP
+            self.deviceFound = self.fanFound || self.batteryFound;
             defer.resolve();
         })
         .fail(function(err) {
@@ -476,83 +534,68 @@ ArgonOneUp.prototype.calculateFanSpeed = function(temperature) {
 
 // ---------------------------------------------------------------------------
 // GPIO Monitoring (Lid and Power Button)
+// Using @iiot2k/gpiox for Pi 5 / kernel 6.12 compatibility
 // ---------------------------------------------------------------------------
 
-ArgonOneUp.prototype.readGpio = function(pin) {
+ArgonOneUp.prototype.initLidGpio = function() {
     var self = this;
-    var defer = libQ.defer();
-
-    var path = '/sys/class/gpio/gpio' + pin + '/value';
     
-    fs.readFile(path, 'utf8', function(err, data) {
-        if (err) {
-            // GPIO not exported, try to export it
-            self.exportGpio(pin)
-                .then(function() {
-                    return fs.readFile(path, 'utf8');
-                })
-                .then(function(data) {
-                    defer.resolve(parseInt(data.trim(), 10));
-                })
-                .fail(function() {
-                    defer.resolve(-1);
-                });
-        } else {
-            defer.resolve(parseInt(data.trim(), 10));
-        }
-    });
-
-    return defer.promise;
+    if (self.lidGpioInitialized) {
+        return true;
+    }
+    
+    try {
+        // Initialize GPIO 27 as input with pull-up for lid sensor
+        // Lid closed = LOW (pulled to ground), Lid open = HIGH (pull-up)
+        gpiox.init_gpio(GPIO_LID, gpiox.GPIO_MODE_INPUT_PULLUP, 0);
+        self.lidGpioInitialized = true;
+        self.logger.info('ArgonOneUp: Lid GPIO ' + GPIO_LID + ' initialized');
+        return true;
+    } catch (err) {
+        self.logger.error('ArgonOneUp: Lid GPIO init failed: ' + err.message);
+        self.lidGpioInitialized = false;
+        return false;
+    }
 };
 
-ArgonOneUp.prototype.exportGpio = function(pin) {
+ArgonOneUp.prototype.deinitLidGpio = function() {
     var self = this;
-    var defer = libQ.defer();
-
-    var exportPath = '/sys/class/gpio/export';
-    var directionPath = '/sys/class/gpio/gpio' + pin + '/direction';
-
-    fs.writeFile(exportPath, pin.toString(), function(err) {
-        if (err && err.code !== 'EBUSY') {
-            defer.reject(err);
-            return;
+    
+    if (self.lidGpioInitialized) {
+        try {
+            gpiox.deinit_gpio(GPIO_LID);
+            self.logger.info('ArgonOneUp: Lid GPIO ' + GPIO_LID + ' released');
+        } catch (err) {
+            self.logger.error('ArgonOneUp: Lid GPIO release failed: ' + err.message);
         }
-
-        // Set as input with pull-up
-        setTimeout(function() {
-            fs.writeFile(directionPath, 'in', function(err) {
-                if (err) {
-                    defer.reject(err);
-                } else {
-                    defer.resolve();
-                }
-            });
-        }, 100);
-    });
-
-    return defer.promise;
+        self.lidGpioInitialized = false;
+    }
 };
 
 ArgonOneUp.prototype.checkLidStatus = function() {
     var self = this;
-    var GPIO_LID = 27;
+    
+    // Skip if GPIO not initialized
+    if (!self.lidGpioInitialized) {
+        return;
+    }
+    
+    try {
+        var value = gpiox.get_gpio(GPIO_LID);
+        var lidNowClosed = (value === 0);  // 0 = closed (pulled low)
 
-    self.readGpio(GPIO_LID)
-        .then(function(value) {
-            if (value === -1) return;
-
-            var lidNowClosed = (value === 0);  // 0 = closed (pulled low)
-
-            if (lidNowClosed && !self.lidClosed) {
-                // Lid just closed
-                self.lidClosed = true;
-                self.onLidClosed();
-            } else if (!lidNowClosed && self.lidClosed) {
-                // Lid just opened
-                self.lidClosed = false;
-                self.onLidOpened();
-            }
-        });
+        if (lidNowClosed && !self.lidClosed) {
+            // Lid just closed
+            self.lidClosed = true;
+            self.onLidClosed();
+        } else if (!lidNowClosed && self.lidClosed) {
+            // Lid just opened
+            self.lidClosed = false;
+            self.onLidOpened();
+        }
+    } catch (err) {
+        self.logDebug('ArgonOneUp: Lid GPIO read error: ' + err.message);
+    }
 };
 
 ArgonOneUp.prototype.onLidClosed = function() {
@@ -621,10 +664,12 @@ ArgonOneUp.prototype.startMonitoring = function() {
         self.updateFanSpeed();
     }
 
-    // GPIO monitoring (lid)
-    self.gpioMonitorInterval = setInterval(function() {
-        self.checkLidStatus();
-    }, self.GPIO_CHECK_MS);
+    // GPIO monitoring (lid) using gpiox
+    if (self.initLidGpio()) {
+        self.gpioMonitorInterval = setInterval(function() {
+            self.checkLidStatus();
+        }, self.GPIO_CHECK_MS);
+    }
 };
 
 ArgonOneUp.prototype.stopMonitoring = function() {
@@ -649,6 +694,9 @@ ArgonOneUp.prototype.stopMonitoring = function() {
         clearTimeout(self.lidShutdownTimer);
         self.lidShutdownTimer = null;
     }
+
+    // Release GPIO resources
+    self.deinitLidGpio();
 };
 
 ArgonOneUp.prototype.monitorBattery = function() {
@@ -825,9 +873,10 @@ ArgonOneUp.prototype.getUIConfig = function() {
             });
 
         // Section 6: Advanced Settings
-        uiconf.sections[6].content[0].value = false;
-        uiconf.sections[6].content[1].value = self.config.get('debug_logging', false);
-        uiconf.sections[6].content[2].value = self.config.get('i2c_bus', 1);
+        uiconf.sections[6].content[0].value = false;  // show_advanced default off
+        var debugVal = self.config.get('debug_logging');
+        uiconf.sections[6].content[1].value = (debugVal === true);  // default false
+        uiconf.sections[6].content[2].value = self.i2cBus;
         uiconf.sections[6].content[3].value = '0x' + self.batteryAddress.toString(16);
         uiconf.sections[6].content[4].value = '0x' + self.fanAddress.toString(16);
 
@@ -867,6 +916,7 @@ ArgonOneUp.prototype.saveFanSettings = function(data) {
     self.config.set('fan_speed_med', parseInt(data.fan_speed_med, 10));
     self.config.set('fan_temp_high', parseInt(data.fan_temp_high, 10));
     self.config.set('fan_speed_high', parseInt(data.fan_speed_high, 10));
+    self.config.save();
 
     // Apply immediately
     self.updateFanSpeed();
@@ -883,6 +933,7 @@ ArgonOneUp.prototype.saveLidSettings = function(data) {
 
     self.config.set('lid_action', data.lid_action.value);
     self.config.set('lid_shutdown_delay', parseInt(data.lid_shutdown_delay, 10));
+    self.config.save();
 
     self.commandRouter.pushToastMessage('success',
         self.getI18nString('PLUGIN_NAME'),
@@ -896,6 +947,7 @@ ArgonOneUp.prototype.savePowerSettings = function(data) {
 
     self.config.set('power_double_action', data.power_double_action.value);
     self.config.set('power_long_action', data.power_long_action.value);
+    self.config.save();
 
     self.commandRouter.pushToastMessage('success',
         self.getI18nString('PLUGIN_NAME'),
@@ -910,6 +962,7 @@ ArgonOneUp.prototype.saveBatterySettings = function(data) {
     self.config.set('battery_warn_level', parseInt(data.battery_warn_level, 10));
     self.config.set('battery_critical_level', parseInt(data.battery_critical_level, 10));
     self.config.set('battery_critical_action', data.battery_critical_action.value);
+    self.config.save();
 
     self.commandRouter.pushToastMessage('success',
         self.getI18nString('PLUGIN_NAME'),
@@ -921,14 +974,17 @@ ArgonOneUp.prototype.saveBatterySettings = function(data) {
 ArgonOneUp.prototype.saveAdvancedSettings = function(data) {
     var self = this;
 
-    self.config.set('debug_logging', data.debug_logging || false);
-    self.debugLogging = data.debug_logging || false;
+    // Handle debug_logging switch - ensure boolean
+    var debugEnabled = (data.debug_logging === true);
+    self.config.set('debug_logging', debugEnabled);
+    self.debugLogging = debugEnabled;
 
-    if (data.show_advanced) {
+    if (data.show_advanced === true) {
         self.config.set('i2c_bus', parseInt(data.i2c_bus, 10));
         self.config.set('battery_address', data.battery_address);
         self.config.set('fan_address', data.fan_address);
     }
+    self.config.save();
 
     self.commandRouter.pushToastMessage('success',
         self.getI18nString('PLUGIN_NAME'),
