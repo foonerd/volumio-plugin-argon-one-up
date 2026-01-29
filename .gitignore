@@ -1,0 +1,26 @@
+# Node
+node_modules/
+npm-debug.log
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.zip
+*.tar.gz
+
+# Debug logs
+*.log
+
+# Temporary files
+/tmp/
+*.tmp
