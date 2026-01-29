@@ -6,9 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Volumio Community",
+  "author": "Just a Nerd",
   "license": "GPL-3.0",
-  "repository": "https://github.com/volumio/volumio-plugins-sources-bookworm",
+  "repository": "https://github.com/foonerd/volumio-plugin-argon-one-up",
   "volumio_info": {
     "prettyName": "Argon ONE UP",
     "icon": "fa-battery-full",
@@ -18,7 +18,6 @@
       "bookworm"
     ],
     "architectures": [
-      "arm64",
       "armhf"
     ],
     "has_configuration": true,

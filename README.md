@@ -37,19 +37,13 @@ UPS battery monitoring, fan control, and power management for Argon ONE UP case 
 
 ### Method 2: Manual Installation
 
-1. Download the plugin zip file
-2. Extract to `/data/plugins/system_hardware/argon_one_up/`
-3. Set permissions:
-   ```
-   chmod +x /data/plugins/system_hardware/argon_one_up/install.sh
-   chmod +x /data/plugins/system_hardware/argon_one_up/uninstall.sh
-   ```
-4. Run installation:
-   ```
-   cd /data/plugins/system_hardware/argon_one_up
-   ./install.sh
-   ```
-5. Enable the plugin in Volumio settings
+```
+git clone --depth=1 https://github.com/foonerd/volumio-plugin-argon-one-up
+cd volumio-plugin-argon-one-up
+volumio plugin install
+```
+
+Enable the plugin in Volumio settings.
 
 ## Configuration
 
