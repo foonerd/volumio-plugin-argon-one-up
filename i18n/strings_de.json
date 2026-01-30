@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Nur Warnung",
   "BATTERY_ACTION_SHUTDOWN": "Sicheres Herunterfahren",
 
+  "KEYBOARD_SETTINGS": "Tastatur / Lautstarketasten",
+  "KEYBOARD_SETTINGS_DOC": "Lautstarketasten-Verarbeitung. Standard: aus (triggerhappy verarbeitet Lautstarke fur Bluetooth, Flirc usw.).",
+  "KEYBOARD_HANDLE_VOLUME": "Lautstarketasten im Plugin verarbeiten",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Wenn aus, werden Lautstarketasten von triggerhappy (Kern) verarbeitet. Wenn an, verarbeitet Plugin oder benutzerdefiniertes Skript die Lautstarke.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Benutzerdefiniertes Skript fur Lautstarketasten verwenden",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Wenn an, ruft Lautstarke hoch/runter/stumm Ihr Skript mit Argument auf: up, down oder mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Benutzerdefinierter Skriptpfad",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Verzeichnis mit dem Skript (z.B. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Benutzerdefinierter Skriptname",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Skript-Dateiname (z.B. volume-keys.sh). Aufruf: pfad/name up|down|mute.",
+
   "EEPROM_SETTINGS": "EEPROM-Konfiguration",
   "EEPROM_SETTINGS_DOC": "Raspberry Pi Bootloader-Einstellungen fur USV-Kompatibilitat",
   "PSU_MAX_CURRENT": "Netzteil Max. Strom (mA)",

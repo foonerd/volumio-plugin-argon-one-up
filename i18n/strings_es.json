@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Solo aviso",
   "BATTERY_ACTION_SHUTDOWN": "Apagado seguro",
 
+  "KEYBOARD_SETTINGS": "Teclado / Teclas de volumen",
+  "KEYBOARD_SETTINGS_DOC": "Manejo de teclas de volumen. Por defecto: desactivado (triggerhappy maneja volumen para Bluetooth, Flirc, etc.).",
+  "KEYBOARD_HANDLE_VOLUME": "Manejar teclas de volumen en el plugin",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Si esta desactivado, las teclas de volumen son manejadas por triggerhappy (nucleo). Si esta activado, el plugin o script personalizado maneja el volumen.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Usar script personalizado para teclas de volumen",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Si esta activado, subir/bajar volumen/silenciar llama a tu script con argumento: up, down o mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Ruta del script personalizado",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Directorio que contiene el script (ej. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Nombre del script personalizado",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Nombre del archivo de script (ej. volume-keys.sh). Se llama como: ruta/nombre up|down|mute.",
+
   "EEPROM_SETTINGS": "Configuracion EEPROM",
   "EEPROM_SETTINGS_DOC": "Ajustes del cargador de arranque Raspberry Pi para compatibilidad SAI",
   "PSU_MAX_CURRENT": "Corriente maxima fuente (mA)",

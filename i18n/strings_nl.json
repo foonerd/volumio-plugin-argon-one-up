@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Alleen waarschuwing",
   "BATTERY_ACTION_SHUTDOWN": "Veilig afsluiten",
 
+  "KEYBOARD_SETTINGS": "Toetsenbord / Volumetoetsen",
+  "KEYBOARD_SETTINGS_DOC": "Volumetoetsafhandeling. Standaard: uit (triggerhappy verwerkt volume voor Bluetooth, Flirc, enz.).",
+  "KEYBOARD_HANDLE_VOLUME": "Volumetoetsen in plugin verwerken",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Wanneer uit, worden volumetoetsen door triggerhappy (kern) verwerkt. Wanneer aan, verwerkt plugin of aangepast script het volume.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Aangepast script voor volumetoetsen gebruiken",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Wanneer aan, roept volume omhoog/omlaag/dempen uw script aan met argument: up, down of mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Aangepast scriptpad",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Map met het script (bijv. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Aangepaste scriptnaam",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Scriptbestandsnaam (bijv. volume-keys.sh). Aangeroepen als: pad/naam up|down|mute.",
+
   "EEPROM_SETTINGS": "EEPROM-configuratie",
   "EEPROM_SETTINGS_DOC": "Raspberry Pi bootloader-instellingen voor UPS-compatibiliteit",
   "PSU_MAX_CURRENT": "Voeding max. stroom (mA)",

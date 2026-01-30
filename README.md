@@ -10,6 +10,7 @@ UPS battery monitoring, fan control, and power management for Argon ONE UP case 
 - **Lid Detection** - Optional shutdown when lid is closed
 - **Power Button** - Configurable actions for double-press and long-press
 - **Battery Alerts** - Warning notifications and automatic shutdown on critical battery
+- **Keyboard Hotkeys** (laptop form factor) - Brightness (ddcutil), volume/mute (wpctl), battery status key
 - **EEPROM Configuration** - PSU_MAX_CURRENT status check for Raspberry Pi 5
 - **Multi-language Support** - 11 languages included
 
@@ -102,6 +103,20 @@ Configure action when case lid is closed:
 **Critical Action**
 - Warning Only - Show notification only
 - Safe Shutdown - Initiate system shutdown
+
+### Keyboard (Argon ONE UP laptop)
+
+When using the Argon ONE UP in laptop form (built-in keyboard and touchpad), a background service handles hotkeys:
+
+- **Brightness Up/Down** – Adjusts display brightness via DDC/CI (requires `ddcutil` and a compatible display).
+- **Volume Up/Down / Mute** – Requests are written to a file; the plugin applies them via Volumio’s volume API (`volumiosetvolume`), so volume follows the same pure ALSA path as the UI (no PipeWire).
+- **Battery key (e.g. KEY_PAUSE / Print Screen on some units)** – Shows a Volumio toast with current battery level and charging status (data from the plugin).
+
+The keyboard handler runs as a systemd service (`argon-one-up-keyboard`) started by the plugin install. The plugin writes battery status to `/dev/shm/upslog.txt` and reads notifications from `/dev/shm/argon_keyboard_notify.txt` to show toasts in the Volumio UI.
+
+**Optional dependencies** (installed by the plugin when available):
+- `python3-evdev` – Keyboard event access (required for keyboard service).
+- `ddcutil` – Display brightness control (optional). Volume/mute use Volumio ALSA only (no PipeWire).
 
 ### EEPROM Configuration (Raspberry Pi 5 only)
 
@@ -214,6 +229,10 @@ The plugin includes translations for:
 - Chinese Simplified (zh_CN)
 
 ## Version History
+
+### 1.1.0 (Phase 2)
+- **Keyboard handler** – Optional Python service for Argon ONE UP laptop: brightness (ddcutil), volume/mute (wpctl), battery status key. Notifications shown as Volumio toasts. Service `argon-one-up-keyboard` installed and started by the plugin.
+- **Battery status file** – Plugin writes `/dev/shm/upslog.txt` for the keyboard script; keyboard writes `/dev/shm/argon_keyboard_notify.txt` for Node to show toasts.
 
 ### 1.0.1
 - **Config persistence** – Settings now save correctly to `/data/configuration/system_hardware/argon_one_up/config.json` and survive reboot (explicit `config.save()` after each save handler, matching Volumio plugin pattern).

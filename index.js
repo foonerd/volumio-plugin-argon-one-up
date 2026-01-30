@@ -23,6 +23,12 @@ var USERCONFIG_PATH = '/boot/userconfig.txt';
 var GPIO_LID = 27;
 var GPIO_POWER = 4;
 
+// Keyboard handler (Python) reads battery from here; writes notifications here for Node to show as toasts
+var UPS_LOGFILE = '/dev/shm/upslog.txt';
+var KEYBOARD_NOTIFY_FILE = '/dev/shm/argon_keyboard_notify.txt';
+// Volume keys: Python writes "up"|"down"|"mute"; Node applies via Volumio ALSA (volumiosetvolume)
+var KEYBOARD_VOLUME_REQUEST_FILE = '/dev/shm/argon_volume_request.txt';
+
 module.exports = ArgonOneUp;
 
 function ArgonOneUp(context) {
@@ -69,6 +75,7 @@ function ArgonOneUp(context) {
     self.batteryMonitorInterval = null;
     self.fanControlInterval = null;
     self.gpioMonitorInterval = null;
+    self.keyboardNotifyInterval = null;
 
     // Timing constants
     self.BATTERY_CHECK_MS = 10000;   // 10 seconds
@@ -1105,6 +1112,14 @@ ArgonOneUp.prototype.startMonitoring = function() {
             self.checkPowerButton();
         }, 50); // 50ms for responsive button detection
     }
+
+    // Keyboard: notify toasts + volume requests (Volumio ALSA path, not PipeWire)
+    if (self.deviceFound) {
+        self.keyboardNotifyInterval = setInterval(function() {
+            self.checkKeyboardNotify();
+            self.checkKeyboardVolumeRequest();
+        }, 500);
+    }
 };
 
 ArgonOneUp.prototype.stopMonitoring = function() {
@@ -1140,9 +1155,54 @@ ArgonOneUp.prototype.stopMonitoring = function() {
         self.powerButtonPulseTimer = null;
     }
 
+    if (self.keyboardNotifyInterval) {
+        clearInterval(self.keyboardNotifyInterval);
+        self.keyboardNotifyInterval = null;
+    }
+
     // Release GPIO resources
     self.deinitLidGpio();
     self.deinitPowerButtonGpio();
+};
+
+ArgonOneUp.prototype.checkKeyboardNotify = function() {
+    var self = this;
+    try {
+        if (!fs.existsSync(KEYBOARD_NOTIFY_FILE)) return;
+        var line = fs.readFileSync(KEYBOARD_NOTIFY_FILE, 'utf8').trim();
+        fs.unlinkSync(KEYBOARD_NOTIFY_FILE);
+        if (!line) return;
+        var parts = line.split('|');
+        var type = (parts[0] && parts[0].trim()) || 'info';
+        var title = (parts[1] && parts[1].trim()) || self.getI18nString('PLUGIN_NAME');
+        var message = (parts[2] && parts[2].trim()) || line;
+        self.commandRouter.pushToastMessage(type, title, message);
+    } catch (e) {
+        self.logDebug('ArgonOneUp: keyboard notify read failed: ' + e.message);
+    }
+};
+
+ArgonOneUp.prototype.checkKeyboardVolumeRequest = function() {
+    var self = this;
+    try {
+        if (!fs.existsSync(KEYBOARD_VOLUME_REQUEST_FILE)) return;
+        var action = fs.readFileSync(KEYBOARD_VOLUME_REQUEST_FILE, 'utf8').trim().toLowerCase();
+        fs.unlinkSync(KEYBOARD_VOLUME_REQUEST_FILE);
+        if (!action) return;
+        var state = self.commandRouter.volumioGetState();
+        var vol = (state && typeof state.volume === 'number') ? state.volume : 50;
+        var step = 5;
+        if (action === 'up') {
+            self.commandRouter.volumiosetvolume(Math.min(100, vol + step));
+        } else if (action === 'down') {
+            self.commandRouter.volumiosetvolume(Math.max(0, vol - step));
+        } else if (action === 'mute') {
+            var muted = state && state.mute === true;
+            self.commandRouter.volumiosetvolume(muted ? 'unmute' : 'mute');
+        }
+    } catch (e) {
+        self.logDebug('ArgonOneUp: keyboard volume request failed: ' + e.message);
+    }
 };
 
 ArgonOneUp.prototype.monitorBattery = function() {
@@ -1161,6 +1221,14 @@ ArgonOneUp.prototype.monitorBattery = function() {
         var wasCharging = self.batteryCharging;
         self.batteryLevel = level;
         self.batteryCharging = charging;
+
+        // Write battery status for keyboard script (battery key / KEY_PAUSE shows this)
+        try {
+            var powerLine = level + '% ' + (charging ? self.getI18nString('BATTERY_CHARGING') : self.getI18nString('BATTERY_DISCHARGING'));
+            fs.writeFileSync(UPS_LOGFILE, 'power: ' + powerLine + '\n', 'utf8');
+        } catch (e) {
+            self.logDebug('ArgonOneUp: upslog write failed: ' + e.message);
+        }
 
         // Power state change notifications
         if (charging && !wasCharging) {
@@ -1318,18 +1386,24 @@ ArgonOneUp.prototype.getUIConfig = function() {
                 self.getI18nString('BATTERY_ACTION_SHUTDOWN')
         };
 
-        // Section 5: EEPROM Settings (resolve only after status is set)
-        // Section 6: Advanced Settings
-        uiconf.sections[6].content[0].value = false;  // show_advanced default off
+        // Section 5: Keyboard Settings
+        uiconf.sections[5].content[0].value = self.config.get('keyboard_handle_volume') === true;
+        uiconf.sections[5].content[1].value = self.config.get('keyboard_custom_script_enabled') === true;
+        uiconf.sections[5].content[2].value = self.config.get('keyboard_custom_script_path') || '';
+        uiconf.sections[5].content[3].value = self.config.get('keyboard_custom_script_name') || '';
+
+        // Section 6: EEPROM Settings (resolve only after status is set)
+        // Section 7: Advanced Settings
+        uiconf.sections[7].content[0].value = false;  // show_advanced default off
         var debugVal = self.config.get('debug_logging');
-        uiconf.sections[6].content[1].value = (debugVal === true);  // default false
-        uiconf.sections[6].content[2].value = self.i2cBus;
-        uiconf.sections[6].content[3].value = '0x' + self.batteryAddress.toString(16);
-        uiconf.sections[6].content[4].value = '0x' + self.fanAddress.toString(16);
+        uiconf.sections[7].content[1].value = (debugVal === true);  // default false
+        uiconf.sections[7].content[2].value = self.i2cBus;
+        uiconf.sections[7].content[3].value = '0x' + self.batteryAddress.toString(16);
+        uiconf.sections[7].content[4].value = '0x' + self.fanAddress.toString(16);
 
         self.checkEepromStatus()
             .then(function(status) {
-                uiconf.sections[5].content[0].value = status;
+                uiconf.sections[6].content[0].value = status;
                 defer.resolve(uiconf);
             });
     })
@@ -1420,6 +1494,23 @@ ArgonOneUp.prototype.saveBatterySettings = function(data) {
     self.config.set('battery_warn_level', parseInt(data.battery_warn_level, 10));
     self.config.set('battery_critical_level', parseInt(data.battery_critical_level, 10));
     self.config.set('battery_critical_action', data.battery_critical_action.value);
+
+    self.config.save();
+
+    self.commandRouter.pushToastMessage('success',
+        self.getI18nString('PLUGIN_NAME'),
+        self.getI18nString('SETTINGS_SAVED'));
+
+    return libQ.resolve();
+};
+
+ArgonOneUp.prototype.saveKeyboardSettings = function(data) {
+    var self = this;
+
+    self.config.set('keyboard_handle_volume', data.keyboard_handle_volume === true || data.keyboard_handle_volume === 'true');
+    self.config.set('keyboard_custom_script_enabled', data.keyboard_custom_script_enabled === true || data.keyboard_custom_script_enabled === 'true');
+    self.config.set('keyboard_custom_script_path', (data.keyboard_custom_script_path || '').trim());
+    self.config.set('keyboard_custom_script_name', (data.keyboard_custom_script_name || '').trim());
 
     self.config.save();
 

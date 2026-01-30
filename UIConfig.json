@@ -464,6 +464,71 @@
       ]
     },
     {
+      "id": "section_keyboard",
+      "element": "section",
+      "label": "TRANSLATE.KEYBOARD_SETTINGS",
+      "icon": "fa-keyboard-o",
+      "description": "TRANSLATE.KEYBOARD_SETTINGS_DOC",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "system_hardware/argon_one_up",
+        "method": "saveKeyboardSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": [
+          "keyboard_handle_volume",
+          "keyboard_custom_script_enabled",
+          "keyboard_custom_script_path",
+          "keyboard_custom_script_name"
+        ]
+      },
+      "content": [
+        {
+          "id": "keyboard_handle_volume",
+          "element": "switch",
+          "label": "TRANSLATE.KEYBOARD_HANDLE_VOLUME",
+          "doc": "TRANSLATE.KEYBOARD_HANDLE_VOLUME_DOC",
+          "value": false
+        },
+        {
+          "id": "keyboard_custom_script_enabled",
+          "element": "switch",
+          "label": "TRANSLATE.KEYBOARD_USE_CUSTOM_SCRIPT",
+          "doc": "TRANSLATE.KEYBOARD_USE_CUSTOM_SCRIPT_DOC",
+          "value": false,
+          "visibleIf": {
+            "field": "keyboard_handle_volume",
+            "value": true
+          }
+        },
+        {
+          "id": "keyboard_custom_script_path",
+          "element": "input",
+          "type": "text",
+          "label": "TRANSLATE.KEYBOARD_CUSTOM_SCRIPT_PATH",
+          "doc": "TRANSLATE.KEYBOARD_CUSTOM_SCRIPT_PATH_DOC",
+          "value": "",
+          "visibleIf": {
+            "field": "keyboard_custom_script_enabled",
+            "value": true
+          }
+        },
+        {
+          "id": "keyboard_custom_script_name",
+          "element": "input",
+          "type": "text",
+          "label": "TRANSLATE.KEYBOARD_CUSTOM_SCRIPT_NAME",
+          "doc": "TRANSLATE.KEYBOARD_CUSTOM_SCRIPT_NAME_DOC",
+          "value": "",
+          "visibleIf": {
+            "field": "keyboard_custom_script_enabled",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
       "id": "section_eeprom",
       "element": "section",
       "label": "TRANSLATE.EEPROM_SETTINGS",

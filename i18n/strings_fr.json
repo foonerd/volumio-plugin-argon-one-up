@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Avertissement uniquement",
   "BATTERY_ACTION_SHUTDOWN": "Arret securise",
 
+  "KEYBOARD_SETTINGS": "Clavier / Touches de volume",
+  "KEYBOARD_SETTINGS_DOC": "Gestion des touches de volume. Par defaut: desactive (triggerhappy gere le volume pour Bluetooth, Flirc, etc.).",
+  "KEYBOARD_HANDLE_VOLUME": "Gerer les touches de volume dans le plugin",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Si desactive, les touches de volume sont gerees par triggerhappy (noyau). Si active, le plugin ou script personnalise gere le volume.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Utiliser un script personnalise pour les touches de volume",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Si active, augmenter/diminuer/couper le son appelle votre script avec argument: up, down ou mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Chemin du script personnalise",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Repertoire contenant le script (ex. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Nom du script personnalise",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Nom du fichier script (ex. volume-keys.sh). Appele comme: chemin/nom up|down|mute.",
+
   "EEPROM_SETTINGS": "Configuration EEPROM",
   "EEPROM_SETTINGS_DOC": "Parametres du chargeur de demarrage Raspberry Pi pour compatibilite onduleur",
   "PSU_MAX_CURRENT": "Courant max alimentation (mA)",

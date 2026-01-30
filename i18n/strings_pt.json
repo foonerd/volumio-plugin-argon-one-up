@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Apenas aviso",
   "BATTERY_ACTION_SHUTDOWN": "Desligamento seguro",
 
+  "KEYBOARD_SETTINGS": "Teclado / Teclas de volume",
+  "KEYBOARD_SETTINGS_DOC": "Gestao das teclas de volume. Predefinicao: desligado (triggerhappy gere o volume para Bluetooth, Flirc, etc.).",
+  "KEYBOARD_HANDLE_VOLUME": "Gerir teclas de volume no plugin",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Quando desligado, as teclas de volume sao geridas pelo triggerhappy (nucleo). Quando ligado, o plugin ou script personalizado gere o volume.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Usar script personalizado para teclas de volume",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Quando ligado, volume cima/baixo/mudo chama o seu script com argumento: up, down ou mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Caminho do script personalizado",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Diretorio que contem o script (ex. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Nome do script personalizado",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Nome do ficheiro do script (ex. volume-keys.sh). Chamado como: caminho/nome up|down|mute.",
+
   "EEPROM_SETTINGS": "Configuracao EEPROM",
   "EEPROM_SETTINGS_DOC": "Definicoes do bootloader Raspberry Pi para compatibilidade UPS",
   "PSU_MAX_CURRENT": "Corrente max. fonte (mA)",

@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Warning Only",
   "BATTERY_ACTION_SHUTDOWN": "Safe Shutdown",
 
+  "KEYBOARD_SETTINGS": "Keyboard / Volume Keys",
+  "KEYBOARD_SETTINGS_DOC": "Volume key handling. Default: off (triggerhappy handles volume for Bluetooth, Flirc, etc.).",
+  "KEYBOARD_HANDLE_VOLUME": "Handle volume keys in plugin",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "When off, volume keys are handled by triggerhappy (core). When on, plugin or custom script handles volume.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Use custom script for volume keys",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "When on, volume up/down/mute call your script with argument: up, down, or mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Custom script path",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Directory containing the script (e.g. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Custom script name",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Script filename (e.g. volume-keys.sh). Called as: path/name up|down|mute.",
+
   "EEPROM_SETTINGS": "EEPROM Configuration",
   "EEPROM_SETTINGS_DOC": "Raspberry Pi bootloader settings for UPS compatibility",
   "PSU_MAX_CURRENT": "PSU Max Current (mA)",

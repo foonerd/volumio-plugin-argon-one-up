@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Tylko ostrzezenie",
   "BATTERY_ACTION_SHUTDOWN": "Bezpieczne wylaczenie",
 
+  "KEYBOARD_SETTINGS": "Klawiatura / Klawisze glosnosci",
+  "KEYBOARD_SETTINGS_DOC": "Obsluga klawiszy glosnosci. Domyslnie: wylaczone (triggerhappy obsluguje glosnosc dla Bluetooth, Flirc itp.).",
+  "KEYBOARD_HANDLE_VOLUME": "Obsluguj klawisze glosnosci w pluginie",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Gdy wylaczone, klawisze glosnosci sa obslugiwane przez triggerhappy (jadro). Gdy wlaczone, plugin lub skrypt niestandardowy obsluguje glosnosc.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Uzyj niestandardowego skryptu dla klawiszy glosnosci",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Gdy wlaczone, glosnosc w gore/w dol/wyciszenie wywoluje twoj skrypt z argumentem: up, down lub mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Sciezka niestandardowego skryptu",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Katalog zawierajacy skrypt (np. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Nazwa niestandardowego skryptu",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Nazwa pliku skryptu (np. volume-keys.sh). Wywolywany jako: sciezka/nazwa up|down|mute.",
+
   "EEPROM_SETTINGS": "Konfiguracja EEPROM",
   "EEPROM_SETTINGS_DOC": "Ustawienia bootloadera Raspberry Pi dla kompatybilnosci z UPS",
   "PSU_MAX_CURRENT": "Maks. prad zasilacza (mA)",

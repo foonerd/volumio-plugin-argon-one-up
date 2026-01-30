@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Только предупреждение",
   "BATTERY_ACTION_SHUTDOWN": "Безопасное выключение",
 
+  "KEYBOARD_SETTINGS": "Клавиатура / Клавиши громкости",
+  "KEYBOARD_SETTINGS_DOC": "Обработка клавиш громкости. По умолчанию: выключено (triggerhappy управляет громкостью для Bluetooth, Flirc и т.д.).",
+  "KEYBOARD_HANDLE_VOLUME": "Обрабатывать клавиши громкости в плагине",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Когда выключено, клавиши громкости обрабатываются triggerhappy (ядро). Когда включено, плагин или пользовательский скрипт управляет громкостью.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Использовать пользовательский скрипт для клавиш громкости",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Когда включено, увеличение/уменьшение громкости/отключение звука вызывает ваш скрипт с аргументом: up, down или mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Путь к пользовательскому скрипту",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Каталог, содержащий скрипт (например, /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Имя пользовательского скрипта",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Имя файла скрипта (например, volume-keys.sh). Вызывается как: путь/имя up|down|mute.",
+
   "EEPROM_SETTINGS": "Настройка EEPROM",
   "EEPROM_SETTINGS_DOC": "Настройки загрузчика Raspberry Pi для совместимости с ИБП",
   "PSU_MAX_CURRENT": "Макс. ток БП (мА)",

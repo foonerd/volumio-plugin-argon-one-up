@@ -9,7 +9,10 @@ echo "Architecture: ${ARCH}"
 # Install required packages
 echo "Installing dependencies..."
 apt-get update
-apt-get install -y i2c-tools
+apt-get install -y i2c-tools python3-evdev
+
+# Optional: ddcutil (display brightness), wpctl from PipeWire (volume) - for keyboard hotkeys
+apt-get install -y ddcutil 2>/dev/null || true
 
 # Boot config files (Volumio includes userconfig.txt last, so it can override)
 USERCONFIG="/boot/userconfig.txt"
@@ -95,6 +98,40 @@ if [ -e /dev/i2c-1 ]; then
     echo "I2C bus 1 available"
 else
     echo "WARNING: I2C bus not available. Reboot may be required."
+fi
+
+# Keyboard handler service (Argon ONE UP laptop: brightness, volume, battery key)
+PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+KEYBOARD_SCRIPT="${PLUGIN_DIR}/argonkeyboard.py"
+SERVICE_NAME="argon-one-up-keyboard"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+
+if [ -f "$KEYBOARD_SCRIPT" ]; then
+    echo "Installing keyboard handler service..."
+    cat > "${SERVICE_FILE}" << EOF
+[Unit]
+Description=Argon ONE UP keyboard handler (brightness, volume, battery)
+After=volumio.service
+PartOf=volumio.service
+
+[Service]
+Type=simple
+User=volumio
+Group=volumio
+Environment=ARGON_ONE_UP_CONFIG=/data/configuration/system_hardware/argon_one_up/config.json
+ExecStart=/usr/bin/python3 ${KEYBOARD_SCRIPT} SERVICE
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}.service" 2>/dev/null || true
+    systemctl start "${SERVICE_NAME}.service" 2>/dev/null || true
+    echo "Keyboard handler service installed and started."
+else
+    echo "Keyboard script not found, skipping keyboard service."
 fi
 
 echo "Argon ONE UP plugin installed successfully"

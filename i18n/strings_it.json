@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "Solo avviso",
   "BATTERY_ACTION_SHUTDOWN": "Spegnimento sicuro",
 
+  "KEYBOARD_SETTINGS": "Tastiera / Tasti volume",
+  "KEYBOARD_SETTINGS_DOC": "Gestione tasti volume. Predefinito: disattivato (triggerhappy gestisce il volume per Bluetooth, Flirc, ecc.).",
+  "KEYBOARD_HANDLE_VOLUME": "Gestisci tasti volume nel plugin",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "Se disattivato, i tasti volume sono gestiti da triggerhappy (core). Se attivato, il plugin o script personalizzato gestisce il volume.",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "Usa script personalizzato per tasti volume",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "Se attivato, volume su/giu/muto chiama il tuo script con argomento: up, down o mute.",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "Percorso script personalizzato",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "Directory contenente lo script (es. /usr/local/bin).",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "Nome script personalizzato",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "Nome file script (es. volume-keys.sh). Chiamato come: percorso/nome up|down|mute.",
+
   "EEPROM_SETTINGS": "Configurazione EEPROM",
   "EEPROM_SETTINGS_DOC": "Impostazioni bootloader Raspberry Pi per compatibilita UPS",
   "PSU_MAX_CURRENT": "Corrente max alimentatore (mA)",

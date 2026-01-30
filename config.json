@@ -17,5 +17,9 @@
   "battery_warn_level": 20,
   "battery_critical_level": 5,
   "battery_critical_action": "shutdown",
+  "keyboard_handle_volume": false,
+  "keyboard_custom_script_enabled": false,
+  "keyboard_custom_script_path": "",
+  "keyboard_custom_script_name": "",
   "debug_logging": false
 }

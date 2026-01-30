@@ -73,6 +73,17 @@
   "BATTERY_ACTION_WARN": "仅警告",
   "BATTERY_ACTION_SHUTDOWN": "安全关机",
 
+  "KEYBOARD_SETTINGS": "键盘 / 音量键",
+  "KEYBOARD_SETTINGS_DOC": "音量键处理。默认：关闭（triggerhappy处理蓝牙、Flirc等的音量）。",
+  "KEYBOARD_HANDLE_VOLUME": "在插件中处理音量键",
+  "KEYBOARD_HANDLE_VOLUME_DOC": "关闭时，音量键由triggerhappy（核心）处理。开启时，插件或自定义脚本处理音量。",
+  "KEYBOARD_USE_CUSTOM_SCRIPT": "使用自定义脚本处理音量键",
+  "KEYBOARD_USE_CUSTOM_SCRIPT_DOC": "开启时，音量增加/减少/静音会调用您的脚本，参数为：up、down或mute。",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH": "自定义脚本路径",
+  "KEYBOARD_CUSTOM_SCRIPT_PATH_DOC": "包含脚本的目录（例如 /usr/local/bin）。",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME": "自定义脚本名称",
+  "KEYBOARD_CUSTOM_SCRIPT_NAME_DOC": "脚本文件名（例如 volume-keys.sh）。调用方式：路径/名称 up|down|mute。",
+
   "EEPROM_SETTINGS": "EEPROM配置",
   "EEPROM_SETTINGS_DOC": "用于UPS兼容性的树莓派引导加载程序设置",
   "PSU_MAX_CURRENT": "电源最大电流（mA）",
