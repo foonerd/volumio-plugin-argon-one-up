@@ -11,15 +11,14 @@ UPS battery monitoring, fan control, and power management for Argon ONE UP case 
 - **Power Button** - Configurable actions for double-press and long-press
 - **Battery Alerts** - Warning notifications and automatic shutdown on critical battery
 - **Keyboard Hotkeys** (laptop form factor) - Brightness (ddcutil), volume/mute (Volumio API), battery status key
-- **EEPROM Configuration** - PSU_MAX_CURRENT status check for Raspberry Pi 5
+- **EEPROM Configuration** - PSU_MAX_CURRENT status check for Raspberry Pi CM5
 - **Multi-language Support** - 11 languages included
 
 ## Supported Hardware
 
 - Argon ONE UP Case (with UPS battery)
 - Argon ONE Case (fan control only, no battery features)
-- Raspberry Pi 4 Model B
-- Raspberry Pi 5
+- Raspberry Pi CM5
 
 ## Requirements
 
@@ -118,7 +117,7 @@ The keyboard handler runs as a systemd service (`argon-one-up-keyboard`) started
 - `python3-evdev` – Keyboard event access (required for keyboard service).
 - `ddcutil` – Display brightness control (optional). Volume/mute use Volumio ALSA only (no PipeWire).
 
-### EEPROM Configuration (Raspberry Pi 5 only)
+### EEPROM Configuration (Raspberry Pi CM5 only)
 
 The Argon ONE UP requires PSU_MAX_CURRENT=5000 in EEPROM for proper UPS operation.
 The plugin checks current EEPROM settings and provides guidance for configuration.
@@ -139,7 +138,7 @@ Enable advanced options to access:
 | Device | Address | Description |
 |--------|---------|-------------|
 | Battery Gauge | 0x64 | MAX17040 compatible fuel gauge |
-| Fan Controller | 0x1a | Argon fan/power controller (Pi 4 only; Pi 5 uses native PWM via sysfs) |
+| Fan Controller | 0x1a | Argon fan/power controller (Pi 4 only; Pi 5/CM5 uses native PWM via sysfs) |
 
 ### GPIO Pins
 
@@ -173,9 +172,9 @@ Enable advanced options to access:
 
 ### Fan Not Working
 
-**Raspberry Pi 5 (Argon ONE UP)**
+**Raspberry Pi CM5 (Argon ONE UP)**
 
-The Argon ONE UP uses the Pi 5's native PWM fan controller via `dtoverlay=cooling_fan`, not I2C.
+The Argon ONE UP uses the Pi CM5's native PWM fan controller via `dtoverlay=cooling_fan`, not I2C.
 
 1. Check if `cooling_fan` dtoverlay is enabled:
    ```
@@ -251,8 +250,8 @@ The plugin includes translations for:
 ## Version History
 
 ### 1.1.1
-- **CPU temperature/fan speed fix** – Plugin now correctly reads CPU temperature and fan RPM on Raspberry Pi 5 using the native PWM fan controller (via `dtoverlay=cooling_fan` sysfs interface) instead of the I2C fan address used by the original Argon ONE case.
-- **Install script** – Adds `dtparam=cooling_fan` and fan temperature curve settings to `/boot/userconfig.txt` for Pi 5 fan control.
+- **CPU temperature/fan speed fix** – Plugin now correctly reads CPU temperature and fan RPM on Raspberry Pi CM5 using the native PWM fan controller (via `dtoverlay=cooling_fan` sysfs interface) instead of the I2C fan address used by the original Argon ONE case.
+- **Install script** – Adds `dtparam=cooling_fan` and fan temperature curve settings to `/boot/userconfig.txt` for Pi CM5 fan control.
 - **Debug logging cleanup** – All debug instrumentation now respects the "Debug Logging" UI toggle in Advanced Settings.
 
 ### 1.1.0 (Phase 2)
