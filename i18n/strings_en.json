@@ -116,5 +116,7 @@
   "NOTIFY_BATTERY_CRITICAL": "Battery critical - shutting down",
   "NOTIFY_LID_CLOSED": "Lid closed - shutdown in",
   "NOTIFY_LID_OPENED": "Lid opened - shutdown cancelled",
+  "NOTIFY_REBOOT": "Rebooting system...",
+  "NOTIFY_SHUTDOWN": "Shutting down...",
   "MINUTES": "minutes"
 }

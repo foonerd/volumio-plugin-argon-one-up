@@ -215,6 +215,13 @@ The plugin includes translations for:
 
 ## Version History
 
+### 1.0.1
+- **Config persistence** – Settings now save correctly to `/data/configuration/system_hardware/argon_one_up/config.json` and survive reboot (explicit `config.save()` after each save handler, matching Volumio plugin pattern).
+- **UI loads from disk** – Plugin config is always loaded from the configuration path on startup; settings page reloads config when opened so displayed values match the saved file.
+- **EEPROM status** – Current EEPROM setting field is populated correctly (async fix).
+- **Power button dropdowns** – Double-press and long-press actions show correct values with safe defaults.
+- **UI value types** – Numeric and select fields receive correctly typed values so fan, battery, and other settings display as configured.
+
 ### 1.0.0
 - Initial release
 - Battery monitoring with charging detection

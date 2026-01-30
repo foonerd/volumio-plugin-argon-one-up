@@ -57,6 +57,14 @@ function ArgonOneUp(context) {
     self.lidShutdownTimer = null;
     self.lidGpioInitialized = false;
 
+    // Power button state
+    self.powerButtonGpioInitialized = false;
+    self.powerButtonLastState = 1;  // 1 = released (high), 0 = pressed (low)
+    self.powerButtonPressTime = 0;
+    self.powerButtonPulseCount = 0;
+    self.powerButtonPulseTimer = null;
+    self.powerButtonMonitorInterval = null;
+
     // Monitoring intervals
     self.batteryMonitorInterval = null;
     self.fanControlInterval = null;
@@ -82,14 +90,9 @@ ArgonOneUp.prototype.onVolumioStart = function() {
     );
 
     self.config = new (require('v-conf'))();
-    
-    // Check if config file exists
-    if (fs.existsSync(configFile)) {
-        self.config.loadFile(configFile);
-        self.logger.info('ArgonOneUp: Loaded config from ' + configFile);
-    } else {
-        self.logger.warn('ArgonOneUp: Config file not found: ' + configFile);
-    }
+    // Always loadFile so v-conf has the path for save(); same as volumio-plugins-sources-bookworm
+    self.config.loadFile(configFile);
+    self.logger.info('ArgonOneUp: Config path ' + configFile);
 
     return libQ.resolve();
 };
@@ -373,48 +376,297 @@ ArgonOneUp.prototype.BATTERY_REG = {
     SOC_LOW: 0x05,
     CURRENT_HIGH: 0x0E,
     SOCALERT: 0x0B,
+    GPIOCONFIG: 0x0A,
+    PROFILE: 0x10,
     ICSTATE: 0xA7
 };
+
+// Battery profile data from Argon scripts (80 bytes)
+ArgonOneUp.prototype.BATTERY_PROFILE = [
+    0x32,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xA8,0xAA,
+    0xBE,0xC6,0xB8,0xAE,0xC2,0x98,0x82,0xFF,0xFF,0xCA,
+    0x98,0x75,0x63,0x55,0x4E,0x4C,0x49,0x98,0x88,0xDC,
+    0x34,0xDB,0xD3,0xD4,0xD3,0xD0,0xCE,0xCB,0xBB,0xE7,
+    0xA2,0xC2,0xC4,0xAE,0x96,0x89,0x80,0x74,0x67,0x63,
+    0x71,0x8E,0x9F,0x85,0x6F,0x3B,0x20,0x00,0xAB,0x10,
+    0xFF,0xB0,0x73,0x00,0x00,0x00,0x64,0x08,0xD3,0x77,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFA
+];
 
 ArgonOneUp.prototype.initBattery = function() {
     var self = this;
 
-    // Check battery status and activate if needed
-    self.i2cRead(self.batteryAddress, self.BATTERY_REG.CONTROL)
-        .then(function(value) {
-            if (value !== 0) {
-                self.logDebug('ArgonOneUp: Battery needs activation');
-                return self.activateBattery();
-            }
-            return libQ.resolve();
+    self.logger.info('ArgonOneUp: Initializing battery...');
+
+    // Check and update battery profile (like Argon scripts do)
+    self.batteryCheckUpdateProfile()
+        .then(function() {
+            self.logger.info('ArgonOneUp: Battery initialization complete');
         })
         .fail(function(err) {
-            self.logger.warn('ArgonOneUp: Battery init warning: ' + err.message);
+            self.logger.warn('ArgonOneUp: Battery init warning: ' + err);
         });
 };
 
-ArgonOneUp.prototype.activateBattery = function() {
+// Check battery status - returns 0 if OK, non-zero on error
+ArgonOneUp.prototype.batteryGetStatus = function(restartIfNotActive) {
     var self = this;
     var defer = libQ.defer();
 
-    // Restart sequence from Argon scripts
+    self.i2cRead(self.batteryAddress, self.BATTERY_REG.CONTROL)
+        .then(function(value) {
+            if (value !== 0) {
+                if (restartIfNotActive) {
+                    self.logDebug('ArgonOneUp: Battery inactive, restarting...');
+                    return self.batteryRestart();
+                }
+                defer.resolve(2); // Inactive
+                return;
+            }
+            // Check SOCALERT profile flag
+            return self.i2cRead(self.batteryAddress, self.BATTERY_REG.SOCALERT);
+        })
+        .then(function(value) {
+            if (value === undefined) return; // Already resolved
+            if ((value & 0x80) === 0) {
+                self.logDebug('ArgonOneUp: Battery profile not ready');
+                defer.resolve(3); // Profile not ready
+                return;
+            }
+            defer.resolve(0); // OK
+        })
+        .fail(function(err) {
+            self.logDebug('ArgonOneUp: Battery status error: ' + err);
+            defer.resolve(1); // Error
+        });
+
+    return defer.promise;
+};
+
+// Restart battery - returns 0 on success
+ArgonOneUp.prototype.batteryRestart = function() {
+    var self = this;
+    var defer = libQ.defer();
+    var maxRetry = 3;
+
+    function tryRestart() {
+        if (maxRetry <= 0) {
+            self.logger.warn('ArgonOneUp: Battery restart failed after retries');
+            defer.resolve(2);
+            return;
+        }
+        maxRetry--;
+
+        // Restart sequence
+        self.i2cWrite(self.batteryAddress, self.BATTERY_REG.CONTROL, 0x30)
+            .then(function() {
+                return libQ.delay(500);
+            })
+            .then(function() {
+                return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.CONTROL, 0x00);
+            })
+            .then(function() {
+                return libQ.delay(500);
+            })
+            .then(function() {
+                // Wait for ready status (check ICSTATE)
+                return self.waitForBatteryReady(5);
+            })
+            .then(function(ready) {
+                if (ready) {
+                    self.logger.info('ArgonOneUp: Battery restarted successfully');
+                    defer.resolve(0);
+                } else {
+                    tryRestart(); // Retry
+                }
+            })
+            .fail(function() {
+                tryRestart(); // Retry on error
+            });
+    }
+
+    tryRestart();
+    return defer.promise;
+};
+
+// Wait for battery ICSTATE ready (bits 2-3 set)
+ArgonOneUp.prototype.waitForBatteryReady = function(maxWaitSecs) {
+    var self = this;
+    var defer = libQ.defer();
+
+    function checkReady(remaining) {
+        if (remaining <= 0) {
+            defer.resolve(false);
+            return;
+        }
+
+        self.i2cRead(self.batteryAddress, self.BATTERY_REG.ICSTATE)
+            .then(function(value) {
+                if ((value & 0x0C) !== 0) {
+                    defer.resolve(true);
+                } else {
+                    setTimeout(function() {
+                        checkReady(remaining - 1);
+                    }, 1000);
+                }
+            })
+            .fail(function() {
+                setTimeout(function() {
+                    checkReady(remaining - 1);
+                }, 1000);
+            });
+    }
+
+    checkReady(maxWaitSecs);
+    return defer.promise;
+};
+
+// Check and update battery profile if needed
+ArgonOneUp.prototype.batteryCheckUpdateProfile = function() {
+    var self = this;
+    var defer = libQ.defer();
+    var maxRetry = 5;
+
+    function attemptProfileCheck() {
+        if (maxRetry <= 0) {
+            self.logger.warn('ArgonOneUp: Battery profile check failed after retries');
+            defer.resolve();
+            return;
+        }
+        maxRetry--;
+
+        self.batteryGetStatus(true)
+            .then(function(status) {
+                if (status === 0) {
+                    // Status OK, verify profile
+                    return self.batteryVerifyProfile();
+                }
+                self.logDebug('ArgonOneUp: Battery status ' + status + ', will attempt profile update');
+                return false;
+            })
+            .then(function(profileMatch) {
+                if (profileMatch === true) {
+                    self.logger.info('ArgonOneUp: Battery profile verified');
+                    defer.resolve();
+                    return;
+                }
+                // Need to update profile
+                return self.batteryWriteProfile();
+            })
+            .then(function(result) {
+                if (result === undefined) return; // Already resolved
+                if (result === true) {
+                    self.logger.info('ArgonOneUp: Battery profile updated');
+                    defer.resolve();
+                } else {
+                    // Retry after delay
+                    setTimeout(attemptProfileCheck, 10000);
+                }
+            })
+            .fail(function(err) {
+                self.logDebug('ArgonOneUp: Profile check error: ' + err);
+                setTimeout(attemptProfileCheck, 10000);
+            });
+    }
+
+    attemptProfileCheck();
+    return defer.promise;
+};
+
+// Verify battery profile matches expected data
+ArgonOneUp.prototype.batteryVerifyProfile = function() {
+    var self = this;
+    var defer = libQ.defer();
+    var idx = 0;
+
+    function checkByte() {
+        if (idx >= self.BATTERY_PROFILE.length) {
+            defer.resolve(true); // All bytes match
+            return;
+        }
+
+        self.i2cRead(self.batteryAddress, self.BATTERY_REG.PROFILE + idx)
+            .then(function(value) {
+                if (value !== self.BATTERY_PROFILE[idx]) {
+                    self.logDebug('ArgonOneUp: Profile mismatch at byte ' + idx);
+                    defer.resolve(false);
+                    return;
+                }
+                idx++;
+                checkByte();
+            })
+            .fail(function() {
+                defer.resolve(false);
+            });
+    }
+
+    checkByte();
+    return defer.promise;
+};
+
+// Write battery profile data
+ArgonOneUp.prototype.batteryWriteProfile = function() {
+    var self = this;
+    var defer = libQ.defer();
+
+    self.logger.info('ArgonOneUp: Writing battery profile...');
+
+    // Put battery in sleep state for profile write
     self.i2cWrite(self.batteryAddress, self.BATTERY_REG.CONTROL, 0x30)
         .then(function() {
             return libQ.delay(500);
         })
         .then(function() {
-            return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.CONTROL, 0x00);
+            return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.CONTROL, 0xF0); // Sleep
         })
         .then(function() {
-            self.logger.info('ArgonOneUp: Battery activated');
-            defer.resolve();
+            return libQ.delay(500);
+        })
+        .then(function() {
+            // Write profile bytes sequentially
+            return self.batteryWriteProfileBytes(0);
+        })
+        .then(function() {
+            // Set update flag
+            return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.SOCALERT, 0x80);
+        })
+        .then(function() {
+            return libQ.delay(500);
+        })
+        .then(function() {
+            // Close interrupts
+            return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.GPIOCONFIG, 0);
+        })
+        .then(function() {
+            return libQ.delay(500);
+        })
+        .then(function() {
+            // Restart battery
+            return self.batteryRestart();
+        })
+        .then(function(result) {
+            defer.resolve(result === 0);
         })
         .fail(function(err) {
-            self.logger.error('ArgonOneUp: Battery activation failed: ' + err);
-            defer.reject(err);
+            self.logger.error('ArgonOneUp: Profile write failed: ' + err);
+            defer.resolve(false);
         });
 
     return defer.promise;
+};
+
+// Write profile bytes one at a time
+ArgonOneUp.prototype.batteryWriteProfileBytes = function(idx) {
+    var self = this;
+
+    if (idx >= self.BATTERY_PROFILE.length) {
+        return libQ.resolve();
+    }
+
+    return self.i2cWrite(self.batteryAddress, self.BATTERY_REG.PROFILE + idx, self.BATTERY_PROFILE[idx])
+        .then(function() {
+            return self.batteryWriteProfileBytes(idx + 1);
+        });
 };
 
 ArgonOneUp.prototype.getBatteryLevel = function() {
@@ -638,6 +890,182 @@ ArgonOneUp.prototype.onLidOpened = function() {
 };
 
 // ---------------------------------------------------------------------------
+// Power Button GPIO Monitoring
+// GPIO 4 with pulse width detection for actions
+// Short pulse (20-500ms) = single click, counted for double-click detection
+// Long press (>3s) = long press action
+// ---------------------------------------------------------------------------
+
+ArgonOneUp.prototype.initPowerButtonGpio = function() {
+    var self = this;
+    
+    if (self.powerButtonGpioInitialized) {
+        return true;
+    }
+    
+    try {
+        // Initialize GPIO 4 as input with pull-up for power button
+        // Power button pressed = LOW (pulled to ground), released = HIGH (pull-up)
+        gpiox.init_gpio(GPIO_POWER, gpiox.GPIO_MODE_INPUT_PULLUP, 0);
+        self.powerButtonGpioInitialized = true;
+        self.powerButtonLastState = 1; // Start as released
+        self.logger.info('ArgonOneUp: Power button GPIO ' + GPIO_POWER + ' initialized');
+        return true;
+    } catch (err) {
+        self.logger.error('ArgonOneUp: Power button GPIO init failed: ' + err.message);
+        self.powerButtonGpioInitialized = false;
+        return false;
+    }
+};
+
+ArgonOneUp.prototype.deinitPowerButtonGpio = function() {
+    var self = this;
+    
+    if (self.powerButtonGpioInitialized) {
+        try {
+            // Clear any pending timer
+            if (self.powerButtonPulseTimer) {
+                clearTimeout(self.powerButtonPulseTimer);
+                self.powerButtonPulseTimer = null;
+            }
+            gpiox.deinit_gpio(GPIO_POWER);
+            self.logger.info('ArgonOneUp: Power button GPIO ' + GPIO_POWER + ' released');
+        } catch (err) {
+            self.logger.error('ArgonOneUp: Power button GPIO release failed: ' + err.message);
+        }
+        self.powerButtonGpioInitialized = false;
+    }
+};
+
+ArgonOneUp.prototype.checkPowerButton = function() {
+    var self = this;
+    
+    if (!self.powerButtonGpioInitialized) {
+        return;
+    }
+    
+    try {
+        var value = gpiox.get_gpio(GPIO_POWER);
+        var buttonPressed = (value === 0);  // 0 = pressed (pulled low)
+        var now = Date.now();
+
+        if (buttonPressed && self.powerButtonLastState === 1) {
+            // Button just pressed (falling edge)
+            self.powerButtonPressTime = now;
+            self.powerButtonLastState = 0;
+            self.logDebug('ArgonOneUp: Power button pressed');
+        } 
+        else if (!buttonPressed && self.powerButtonLastState === 0) {
+            // Button just released (rising edge)
+            var pressDuration = now - self.powerButtonPressTime;
+            self.powerButtonLastState = 1;
+            self.logDebug('ArgonOneUp: Power button released, duration: ' + pressDuration + 'ms');
+
+            // Determine pulse type
+            if (pressDuration >= 20 && pressDuration < 500) {
+                // Short pulse - count it for double-click detection
+                self.onPowerButtonShortPulse();
+            } else if (pressDuration >= 3000) {
+                // Long press (>3 seconds)
+                self.onPowerButtonLongPress();
+            }
+            // Ignore very short (<20ms) or medium (500ms-3s) presses
+        }
+        else if (buttonPressed && self.powerButtonLastState === 0) {
+            // Button still held - check for long press
+            var holdDuration = now - self.powerButtonPressTime;
+            if (holdDuration >= 3000) {
+                // Long press detected while still holding
+                self.powerButtonLastState = 2; // Mark as long-press handled
+                self.onPowerButtonLongPress();
+            }
+        }
+    } catch (err) {
+        self.logDebug('ArgonOneUp: Power button GPIO read error: ' + err.message);
+    }
+};
+
+ArgonOneUp.prototype.onPowerButtonShortPulse = function() {
+    var self = this;
+
+    self.powerButtonPulseCount++;
+    self.logDebug('ArgonOneUp: Short pulse detected, count: ' + self.powerButtonPulseCount);
+
+    // Clear existing timer
+    if (self.powerButtonPulseTimer) {
+        clearTimeout(self.powerButtonPulseTimer);
+    }
+
+    // Wait for more pulses (500ms window for double-click)
+    self.powerButtonPulseTimer = setTimeout(function() {
+        var pulses = self.powerButtonPulseCount;
+        self.powerButtonPulseCount = 0;
+        self.powerButtonPulseTimer = null;
+
+        if (pulses >= 2) {
+            self.onPowerButtonDoubleClick();
+        }
+        // Single click is typically ignored (power button behavior managed by dtoverlay)
+    }, 500);
+};
+
+ArgonOneUp.prototype.onPowerButtonDoubleClick = function() {
+    var self = this;
+    var action = self.config.get('power_double_action', 'reboot');
+
+    self.logger.info('ArgonOneUp: Power button double-click, action: ' + action);
+    self.executePowerAction(action, 'double-click');
+};
+
+ArgonOneUp.prototype.onPowerButtonLongPress = function() {
+    var self = this;
+    var action = self.config.get('power_long_action', 'shutdown');
+
+    self.logger.info('ArgonOneUp: Power button long press, action: ' + action);
+    self.executePowerAction(action, 'long press');
+};
+
+ArgonOneUp.prototype.executePowerAction = function(action, trigger) {
+    var self = this;
+
+    switch (action) {
+        case 'reboot':
+            self.commandRouter.pushToastMessage('warning',
+                self.getI18nString('PLUGIN_NAME'),
+                self.getI18nString('NOTIFY_REBOOT'));
+            setTimeout(function() {
+                exec('sudo reboot');
+            }, 1000);
+            break;
+
+        case 'shutdown':
+            self.commandRouter.pushToastMessage('warning',
+                self.getI18nString('PLUGIN_NAME'),
+                self.getI18nString('NOTIFY_SHUTDOWN'));
+            setTimeout(function() {
+                exec('sudo shutdown -h now');
+            }, 1000);
+            break;
+
+        case 'nothing':
+        default:
+            self.logDebug('ArgonOneUp: Power button ' + trigger + ' - no action');
+            break;
+    }
+};
+
+ArgonOneUp.prototype.restartPowerButtonMonitoring = function() {
+    var self = this;
+
+    // Reset pulse state when settings change
+    self.powerButtonPulseCount = 0;
+    if (self.powerButtonPulseTimer) {
+        clearTimeout(self.powerButtonPulseTimer);
+        self.powerButtonPulseTimer = null;
+    }
+};
+
+// ---------------------------------------------------------------------------
 // Monitoring Loop
 // ---------------------------------------------------------------------------
 
@@ -664,11 +1092,18 @@ ArgonOneUp.prototype.startMonitoring = function() {
         self.updateFanSpeed();
     }
 
-    // GPIO monitoring (lid) using gpiox
+    // GPIO monitoring (lid and power button) using gpiox
     if (self.initLidGpio()) {
         self.gpioMonitorInterval = setInterval(function() {
             self.checkLidStatus();
         }, self.GPIO_CHECK_MS);
+    }
+
+    // Power button monitoring (GPIO 4)
+    if (self.initPowerButtonGpio()) {
+        self.powerButtonMonitorInterval = setInterval(function() {
+            self.checkPowerButton();
+        }, 50); // 50ms for responsive button detection
     }
 };
 
@@ -695,8 +1130,19 @@ ArgonOneUp.prototype.stopMonitoring = function() {
         self.lidShutdownTimer = null;
     }
 
+    if (self.powerButtonMonitorInterval) {
+        clearInterval(self.powerButtonMonitorInterval);
+        self.powerButtonMonitorInterval = null;
+    }
+
+    if (self.powerButtonPulseTimer) {
+        clearTimeout(self.powerButtonPulseTimer);
+        self.powerButtonPulseTimer = null;
+    }
+
     // Release GPIO resources
     self.deinitLidGpio();
+    self.deinitPowerButtonGpio();
 };
 
 ArgonOneUp.prototype.monitorBattery = function() {
@@ -778,6 +1224,12 @@ ArgonOneUp.prototype.getUIConfig = function() {
     var defer = libQ.defer();
     var langCode = self.commandRouter.sharedVars.get('language_code');
 
+    // Reload config from disk so UI always shows current /data/configuration/... values
+    var configFile = self.commandRouter.pluginManager.getConfigurationFile(self.context, 'config.json');
+    if (self.config) {
+        self.config.loadFile(configFile);
+    }
+
     self.commandRouter.i18nJson(
         __dirname + '/i18n/strings_' + langCode + '.json',
         __dirname + '/i18n/strings_en.json',
@@ -817,35 +1269,35 @@ ArgonOneUp.prototype.getUIConfig = function() {
         uiconf.sections[0].content[5].value = self.lidClosed ?
             self.getI18nString('LID_CLOSED') : self.getI18nString('LID_OPEN');
 
-        // Section 1: Fan Settings
-        var fanMode = self.config.get('fan_mode', 'auto');
+        // Section 1: Fan Settings (coerce to correct types for UI)
+        var fanMode = String(self.config.get('fan_mode') || 'auto');
         uiconf.sections[1].content[0].value = {
             value: fanMode,
             label: fanMode === 'auto' ? 
                 self.getI18nString('FAN_MODE_AUTO') : 
                 self.getI18nString('FAN_MODE_MANUAL')
         };
-        uiconf.sections[1].content[1].value = self.config.get('fan_manual_speed', 50);
-        uiconf.sections[1].content[2].value = self.config.get('fan_temp_low', 45);
-        uiconf.sections[1].content[3].value = self.config.get('fan_speed_low', 25);
-        uiconf.sections[1].content[4].value = self.config.get('fan_temp_med', 55);
-        uiconf.sections[1].content[5].value = self.config.get('fan_speed_med', 50);
-        uiconf.sections[1].content[6].value = self.config.get('fan_temp_high', 65);
-        uiconf.sections[1].content[7].value = self.config.get('fan_speed_high', 100);
+        uiconf.sections[1].content[1].value = parseInt(self.config.get('fan_manual_speed'), 10) || 50;
+        uiconf.sections[1].content[2].value = parseInt(self.config.get('fan_temp_low'), 10) || 45;
+        uiconf.sections[1].content[3].value = parseInt(self.config.get('fan_speed_low'), 10) || 25;
+        uiconf.sections[1].content[4].value = parseInt(self.config.get('fan_temp_med'), 10) || 55;
+        uiconf.sections[1].content[5].value = parseInt(self.config.get('fan_speed_med'), 10) || 50;
+        uiconf.sections[1].content[6].value = parseInt(self.config.get('fan_temp_high'), 10) || 65;
+        uiconf.sections[1].content[7].value = parseInt(self.config.get('fan_speed_high'), 10) || 100;
 
         // Section 2: Lid Settings
-        var lidAction = self.config.get('lid_action', 'nothing');
+        var lidAction = String(self.config.get('lid_action') || 'nothing');
         uiconf.sections[2].content[0].value = {
             value: lidAction,
             label: lidAction === 'nothing' ?
                 self.getI18nString('LID_ACTION_NOTHING') :
                 self.getI18nString('LID_ACTION_SHUTDOWN')
         };
-        uiconf.sections[2].content[1].value = self.config.get('lid_shutdown_delay', 5);
+        uiconf.sections[2].content[1].value = parseInt(self.config.get('lid_shutdown_delay'), 10) || 5;
 
-        // Section 3: Power Settings
-        var powerDouble = self.config.get('power_double_action', 'reboot');
-        var powerLong = self.config.get('power_long_action', 'shutdown');
+        // Section 3: Power Settings (safe defaults so dropdowns are never empty)
+        var powerDouble = String(self.config.get('power_double_action') || 'reboot');
+        var powerLong = String(self.config.get('power_long_action') || 'shutdown');
         uiconf.sections[3].content[0].value = {
             value: powerDouble,
             label: self.getPowerActionLabel(powerDouble)
@@ -855,10 +1307,10 @@ ArgonOneUp.prototype.getUIConfig = function() {
             label: self.getPowerActionLabel(powerLong)
         };
 
-        // Section 4: Battery Settings
-        uiconf.sections[4].content[0].value = self.config.get('battery_warn_level', 20);
-        uiconf.sections[4].content[1].value = self.config.get('battery_critical_level', 5);
-        var criticalAction = self.config.get('battery_critical_action', 'shutdown');
+        // Section 4: Battery Settings (coerce numbers so UI never shows empty)
+        uiconf.sections[4].content[0].value = parseInt(self.config.get('battery_warn_level'), 10) || 20;
+        uiconf.sections[4].content[1].value = parseInt(self.config.get('battery_critical_level'), 10) || 5;
+        var criticalAction = String(self.config.get('battery_critical_action') || 'shutdown');
         uiconf.sections[4].content[2].value = {
             value: criticalAction,
             label: criticalAction === 'warn' ?
@@ -866,12 +1318,7 @@ ArgonOneUp.prototype.getUIConfig = function() {
                 self.getI18nString('BATTERY_ACTION_SHUTDOWN')
         };
 
-        // Section 5: EEPROM Settings
-        self.checkEepromStatus()
-            .then(function(status) {
-                uiconf.sections[5].content[0].value = status;
-            });
-
+        // Section 5: EEPROM Settings (resolve only after status is set)
         // Section 6: Advanced Settings
         uiconf.sections[6].content[0].value = false;  // show_advanced default off
         var debugVal = self.config.get('debug_logging');
@@ -880,7 +1327,11 @@ ArgonOneUp.prototype.getUIConfig = function() {
         uiconf.sections[6].content[3].value = '0x' + self.batteryAddress.toString(16);
         uiconf.sections[6].content[4].value = '0x' + self.fanAddress.toString(16);
 
-        defer.resolve(uiconf);
+        self.checkEepromStatus()
+            .then(function(status) {
+                uiconf.sections[5].content[0].value = status;
+                defer.resolve(uiconf);
+            });
     })
     .fail(function(err) {
         self.logger.error('ArgonOneUp: getUIConfig failed: ' + err);
@@ -916,6 +1367,8 @@ ArgonOneUp.prototype.saveFanSettings = function(data) {
     self.config.set('fan_speed_med', parseInt(data.fan_speed_med, 10));
     self.config.set('fan_temp_high', parseInt(data.fan_temp_high, 10));
     self.config.set('fan_speed_high', parseInt(data.fan_speed_high, 10));
+
+    // Force dump to disk (same as volumio-plugins-sources-bookworm plugins)
     self.config.save();
 
     // Apply immediately
@@ -933,6 +1386,7 @@ ArgonOneUp.prototype.saveLidSettings = function(data) {
 
     self.config.set('lid_action', data.lid_action.value);
     self.config.set('lid_shutdown_delay', parseInt(data.lid_shutdown_delay, 10));
+
     self.config.save();
 
     self.commandRouter.pushToastMessage('success',
@@ -947,7 +1401,11 @@ ArgonOneUp.prototype.savePowerSettings = function(data) {
 
     self.config.set('power_double_action', data.power_double_action.value);
     self.config.set('power_long_action', data.power_long_action.value);
+
     self.config.save();
+
+    // Restart power button monitoring to apply new actions
+    self.restartPowerButtonMonitoring();
 
     self.commandRouter.pushToastMessage('success',
         self.getI18nString('PLUGIN_NAME'),
@@ -962,6 +1420,7 @@ ArgonOneUp.prototype.saveBatterySettings = function(data) {
     self.config.set('battery_warn_level', parseInt(data.battery_warn_level, 10));
     self.config.set('battery_critical_level', parseInt(data.battery_critical_level, 10));
     self.config.set('battery_critical_action', data.battery_critical_action.value);
+
     self.config.save();
 
     self.commandRouter.pushToastMessage('success',
@@ -984,6 +1443,7 @@ ArgonOneUp.prototype.saveAdvancedSettings = function(data) {
         self.config.set('battery_address', data.battery_address);
         self.config.set('fan_address', data.fan_address);
     }
+
     self.config.save();
 
     self.commandRouter.pushToastMessage('success',
@@ -1036,6 +1496,7 @@ ArgonOneUp.prototype.resetDefaults = function() {
     self.config.set('battery_address', '0x64');
     self.config.set('fan_address', '0x1a');
 
+    self.config.save();
     self.loadConfig();
 
     self.commandRouter.pushToastMessage('success',

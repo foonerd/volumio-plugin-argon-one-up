@@ -11,13 +11,48 @@ echo "Installing dependencies..."
 apt-get update
 apt-get install -y i2c-tools
 
-# Enable I2C if not already enabled
-if ! grep -q "^dtparam=i2c_arm=on" /boot/config.txt 2>/dev/null; then
-    if ! grep -q "^dtparam=i2c_arm=on" /boot/userconfig.txt 2>/dev/null; then
-        echo "Enabling I2C in userconfig.txt..."
-        echo "dtparam=i2c_arm=on" >> /boot/userconfig.txt
-    fi
+# Boot config files (Volumio includes userconfig.txt last, so it can override)
+USERCONFIG="/boot/userconfig.txt"
+
+if [ ! -f "$USERCONFIG" ]; then
+    touch "$USERCONFIG" 2>/dev/null || true
 fi
+
+# Helper: check if param exists in userconfig.txt (we only check userconfig to avoid duplicates there)
+# Note: We intentionally add to userconfig even if a setting exists in volumioconfig.txt under a
+# different scope (e.g., dwc2 is [cm4] only, pciex1_gen=2 is [pi5] - we need to override/add for Pi 5)
+param_in_userconfig() {
+    local pattern="$1"
+    grep -q "^[[:space:]]*${pattern}" "$USERCONFIG" 2>/dev/null
+}
+
+# Helper: add param to userconfig if not already there
+add_boot_param() {
+    local pattern="$1"
+    local line="$2"
+    if ! param_in_userconfig "$pattern"; then
+        echo "$line" >> "$USERCONFIG"
+        echo "Added: $line"
+    else
+        echo "Already present: $pattern"
+    fi
+}
+
+echo "Configuring boot parameters for Argon ONE UP..."
+
+# Argon ONE UP required settings (for Pi 5 / CM5):
+# - dtparam=i2c_arm=on     -> Already in volumioconfig.txt [all], skip
+# - dtparam=uart0=on       -> Not present, add (keyboard/trackpad)
+# - dtoverlay=dwc2         -> Only [cm4] in volumioconfig, add for Pi 5
+# - dtparam=pciex1_gen=3   -> volumioconfig has =2 for [pi5], override to =3
+# - usb_max_current_enable -> Not present, add
+# - dtparam=ant2           -> Not present, add (external antenna)
+
+add_boot_param "dtparam=uart0" "dtparam=uart0=on"
+add_boot_param "dtoverlay=dwc2" "dtoverlay=dwc2,dr_mode=host"
+add_boot_param "dtparam=pciex1_gen" "dtparam=pciex1_gen=3"
+add_boot_param "usb_max_current_enable" "usb_max_current_enable=1"
+add_boot_param "dtparam=ant2" "dtparam=ant2"
 
 # Load I2C kernel module
 if ! lsmod | grep -q i2c_dev; then
