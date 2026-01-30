@@ -10,7 +10,7 @@ UPS battery monitoring, fan control, and power management for Argon ONE UP case 
 - **Lid Detection** - Optional shutdown when lid is closed
 - **Power Button** - Configurable actions for double-press and long-press
 - **Battery Alerts** - Warning notifications and automatic shutdown on critical battery
-- **Keyboard Hotkeys** (laptop form factor) - Brightness (ddcutil), volume/mute (wpctl), battery status key
+- **Keyboard Hotkeys** (laptop form factor) - Brightness (ddcutil), volume/mute (Volumio API), battery status key
 - **EEPROM Configuration** - PSU_MAX_CURRENT status check for Raspberry Pi 5
 - **Multi-language Support** - 11 languages included
 
@@ -66,7 +66,7 @@ Displays current hardware status:
   - Low: Temperature and speed when fan first activates
   - Medium: Intermediate temperature and speed
   - High: Maximum temperature and speed
-- Default curve: 55C/25%, 60C/50%, 65C/100%
+- Default curve: 45C/25%, 55C/50%, 65C/100%
 
 **Manual Mode**
 - Fixed fan speed (0-100%)
@@ -139,7 +139,7 @@ Enable advanced options to access:
 | Device | Address | Description |
 |--------|---------|-------------|
 | Battery Gauge | 0x64 | MAX17040 compatible fuel gauge |
-| Fan Controller | 0x1a | Argon fan/power controller |
+| Fan Controller | 0x1a | Argon fan/power controller (Pi 4 only; Pi 5 uses native PWM via sysfs) |
 
 ### GPIO Pins
 
@@ -172,6 +172,26 @@ Enable advanced options to access:
 3. Verify Argon case is properly connected to GPIO header
 
 ### Fan Not Working
+
+**Raspberry Pi 5 (Argon ONE UP)**
+
+The Argon ONE UP uses the Pi 5's native PWM fan controller via `dtoverlay=cooling_fan`, not I2C.
+
+1. Check if `cooling_fan` dtoverlay is enabled:
+   ```
+   grep -i cooling /boot/userconfig.txt
+   ```
+2. Check fan sysfs interface:
+   ```
+   cat /sys/devices/platform/cooling_fan/hwmon/hwmon*/fan1_input
+   ```
+3. Verify fan temperature thresholds in `/boot/userconfig.txt`:
+   ```
+   dtparam=cooling_fan
+   dtparam=fan_temp0=45000,fan_temp0_speed=125
+   ```
+
+**Raspberry Pi 4 (Argon ONE, non-UP)**
 
 1. Check fan controller detected:
    ```
@@ -230,8 +250,13 @@ The plugin includes translations for:
 
 ## Version History
 
+### 1.1.1
+- **CPU temperature/fan speed fix** – Plugin now correctly reads CPU temperature and fan RPM on Raspberry Pi 5 using the native PWM fan controller (via `dtoverlay=cooling_fan` sysfs interface) instead of the I2C fan address used by the original Argon ONE case.
+- **Install script** – Adds `dtparam=cooling_fan` and fan temperature curve settings to `/boot/userconfig.txt` for Pi 5 fan control.
+- **Debug logging cleanup** – All debug instrumentation now respects the "Debug Logging" UI toggle in Advanced Settings.
+
 ### 1.1.0 (Phase 2)
-- **Keyboard handler** – Optional Python service for Argon ONE UP laptop: brightness (ddcutil), volume/mute (wpctl), battery status key. Notifications shown as Volumio toasts. Service `argon-one-up-keyboard` installed and started by the plugin.
+- **Keyboard handler** – Optional Python service for Argon ONE UP laptop: brightness (ddcutil), volume/mute (Volumio API), battery status key. Notifications shown as Volumio toasts. Service `argon-one-up-keyboard` installed and started by the plugin.
 - **Battery status file** – Plugin writes `/dev/shm/upslog.txt` for the keyboard script; keyboard writes `/dev/shm/argon_keyboard_notify.txt` for Node to show toasts.
 
 ### 1.0.1

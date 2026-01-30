@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "CPU-Temperatur",
   "FAN_SPEED": "Luftergeschwindigkeit",
   "FAN_OFF": "Aus",
+  "FAN_NOT_CONTROLLABLE": "Hardwaregesteuert",
+  "FAN_NOT_AVAILABLE": "Neustart erforderlich",
   "LID_STATUS": "Deckelstatus",
   "LID_OPEN": "Offen",
   "LID_CLOSED": "Geschlossen",

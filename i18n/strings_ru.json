@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "Температура процессора",
   "FAN_SPEED": "Скорость вентилятора",
   "FAN_OFF": "Выключен",
+  "FAN_NOT_CONTROLLABLE": "Аппаратное управление",
+  "FAN_NOT_AVAILABLE": "Требуется перезагрузка",
   "LID_STATUS": "Состояние крышки",
   "LID_OPEN": "Открыта",
   "LID_CLOSED": "Закрыта",

@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "CPU Temperature",
   "FAN_SPEED": "Fan Speed",
   "FAN_OFF": "Off",
+  "FAN_NOT_CONTROLLABLE": "Hardware controlled",
+  "FAN_NOT_AVAILABLE": "Reboot required",
   "LID_STATUS": "Lid Status",
   "LID_OPEN": "Open",
   "LID_CLOSED": "Closed",

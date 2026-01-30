@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "Temperatura CPU",
   "FAN_SPEED": "Velocita ventola",
   "FAN_OFF": "Spenta",
+  "FAN_NOT_CONTROLLABLE": "Controllata dall'hardware",
+  "FAN_NOT_AVAILABLE": "Riavvio richiesto",
   "LID_STATUS": "Stato coperchio",
   "LID_OPEN": "Aperto",
   "LID_CLOSED": "Chiuso",

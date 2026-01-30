@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "Temperatura do CPU",
   "FAN_SPEED": "Velocidade da ventoinha",
   "FAN_OFF": "Desligada",
+  "FAN_NOT_CONTROLLABLE": "Controlado por hardware",
+  "FAN_NOT_AVAILABLE": "Reinicio necessario",
   "LID_STATUS": "Estado da tampa",
   "LID_OPEN": "Aberta",
   "LID_CLOSED": "Fechada",

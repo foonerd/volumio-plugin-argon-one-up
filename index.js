@@ -48,6 +48,7 @@ function ArgonOneUp(context) {
     self.deviceFound = false;
     self.batteryFound = false;
     self.fanFound = false;
+    self.pi5FanAvailable = false;  // Pi 5 native PWM fan (via cooling_fan dtoverlay)
 
     // Battery state
     self.batteryLevel = 0;
@@ -56,6 +57,7 @@ function ArgonOneUp(context) {
 
     // Fan state
     self.currentFanSpeed = 0;
+    self.currentFanRpm = 0;  // Pi 5 fan RPM from cooling_fan interface
     self.cpuTemperature = 0;
 
     // Lid state
@@ -254,6 +256,7 @@ ArgonOneUp.prototype.i2cDetect = function(address) {
             // Check if address appears in output (not --)
             var found = stdout.indexOf(address.toString(16)) !== -1 &&
                        stdout.indexOf('--') === -1;
+            self.logDebug('ArgonOneUp: i2cDetect 0x' + address.toString(16) + ' found=' + found);
             defer.resolve(found);
         }
     });
@@ -328,13 +331,13 @@ ArgonOneUp.prototype.checkDevices = function() {
     var self = this;
     var defer = libQ.defer();
 
-    // Check for fan controller
-    self.i2cDetect(self.fanAddress)
-        .then(function(found) {
-            self.fanFound = found;
-            self.logger.info('ArgonOneUp: Fan controller ' + 
-                         (found ? 'found' : 'not found') + 
-                         ' at 0x' + self.fanAddress.toString(16));
+    // Check for Pi 5 cooling fan (dtoverlay=cooling_fan)
+    // Argon ONE UP uses Pi 5's native PWM fan, not I2C at 0x1a
+    self.getPi5FanSpeed()
+        .then(function(rpm) {
+            self.pi5FanAvailable = (rpm >= 0);
+            self.logger.info('ArgonOneUp: Pi 5 cooling fan ' + 
+                         (self.pi5FanAvailable ? 'available (RPM: ' + rpm + ')' : 'not available (dtoverlay=cooling_fan may be needed)'));
             
             // Check for battery gauge (identifies UP version)
             return self.i2cDetect(self.batteryAddress);
@@ -345,9 +348,9 @@ ArgonOneUp.prototype.checkDevices = function() {
                          (found ? 'found' : 'not found') + 
                          ' at 0x' + self.batteryAddress.toString(16));
             
-            // Device is found if battery OR fan controller is present
-            // Battery at 0x64 identifies Argon ONE UP
-            self.deviceFound = self.fanFound || self.batteryFound;
+            // Device is found if battery is present (identifies Argon ONE UP)
+            // Fan is controlled by Pi 5's native PWM, not I2C
+            self.deviceFound = self.batteryFound;
             defer.resolve();
         })
         .fail(function(err) {
@@ -753,11 +756,51 @@ ArgonOneUp.prototype.getCpuTemperature = function() {
 
     fs.readFile('/sys/class/thermal/thermal_zone0/temp', 'utf8', function(err, data) {
         if (err) {
+            self.logDebug('ArgonOneUp: CPU temp read error: ' + err.message);
             defer.resolve(0);
         } else {
             var temp = parseInt(data.trim(), 10) / 1000;
             defer.resolve(temp);
         }
+    });
+
+    return defer.promise;
+};
+
+// Read fan speed from Pi 5's cooling_fan interface (RPM)
+// Returns fan speed in RPM, or -1 if not available
+ArgonOneUp.prototype.getPi5FanSpeed = function() {
+    var self = this;
+    var defer = libQ.defer();
+
+    // Pi 5 cooling fan exposes fan speed via hwmon under cooling_fan platform device
+    var fanPath = '/sys/devices/platform/cooling_fan/hwmon';
+    
+    fs.readdir(fanPath, function(err, files) {
+        if (err || !files || files.length === 0) {
+            self.logDebug('ArgonOneUp: Pi5 fan hwmon not found');
+            defer.resolve(-1);
+            return;
+        }
+        
+        // Find hwmon* directory and read fan1_input
+        var hwmonDir = files.find(function(f) { return f.startsWith('hwmon'); });
+        if (!hwmonDir) {
+            self.logDebug('ArgonOneUp: Pi5 fan hwmon dir not found in: ' + files.join(', '));
+            defer.resolve(-1);
+            return;
+        }
+        
+        var fanInputPath = fanPath + '/' + hwmonDir + '/fan1_input';
+        fs.readFile(fanInputPath, 'utf8', function(readErr, data) {
+            if (readErr) {
+                self.logDebug('ArgonOneUp: Pi5 fan read error: ' + readErr.message);
+                defer.resolve(-1);
+            } else {
+                var rpm = parseInt(data.trim(), 10);
+                defer.resolve(isNaN(rpm) ? -1 : rpm);
+            }
+        });
     });
 
     return defer.promise;
@@ -1089,7 +1132,7 @@ ArgonOneUp.prototype.startMonitoring = function() {
         self.monitorBattery();
     }
 
-    // Fan control
+    // Fan control (only if fan hardware found at 0x1a)
     if (self.fanFound) {
         self.fanControlInterval = setInterval(function() {
             self.updateFanSpeed();
@@ -1098,6 +1141,13 @@ ArgonOneUp.prototype.startMonitoring = function() {
         // Initial update
         self.updateFanSpeed();
     }
+
+    // CPU temperature monitoring (always, for display purposes)
+    // The Argon ONE UP may not have I2C fan control, but we still want temp
+    self.cpuTempInterval = setInterval(function() {
+        self.updateCpuTemperature();
+    }, self.FAN_CHECK_MS);
+    self.updateCpuTemperature();
 
     // GPIO monitoring (lid and power button) using gpiox
     if (self.initLidGpio()) {
@@ -1133,6 +1183,11 @@ ArgonOneUp.prototype.stopMonitoring = function() {
     if (self.fanControlInterval) {
         clearInterval(self.fanControlInterval);
         self.fanControlInterval = null;
+    }
+
+    if (self.cpuTempInterval) {
+        clearInterval(self.cpuTempInterval);
+        self.cpuTempInterval = null;
     }
 
     if (self.gpioMonitorInterval) {
@@ -1267,6 +1322,25 @@ ArgonOneUp.prototype.monitorBattery = function() {
     });
 };
 
+// Update CPU temperature and fan RPM (for display)
+ArgonOneUp.prototype.updateCpuTemperature = function() {
+    var self = this;
+    self.getCpuTemperature()
+        .then(function(temp) {
+            self.cpuTemperature = temp;
+            // Also read Pi 5 fan RPM if available
+            if (self.pi5FanAvailable) {
+                return self.getPi5FanSpeed();
+            }
+            return -1;
+        })
+        .then(function(rpm) {
+            if (rpm >= 0) {
+                self.currentFanRpm = rpm;
+            }
+        });
+};
+
 ArgonOneUp.prototype.updateFanSpeed = function() {
     var self = this;
 
@@ -1325,12 +1399,14 @@ ArgonOneUp.prototype.getUIConfig = function() {
         // CPU temperature
         uiconf.sections[0].content[3].value = self.cpuTemperature.toFixed(1) + ' C';
 
-        // Fan speed
-        if (self.fanFound) {
-            uiconf.sections[0].content[4].value = self.currentFanSpeed === 0 ?
-                self.getI18nString('FAN_OFF') : self.currentFanSpeed + '%';
+        // Fan speed - Pi 5 native PWM fan (via cooling_fan dtoverlay)
+        if (self.pi5FanAvailable) {
+            // Show RPM from Pi 5's cooling_fan interface
+            uiconf.sections[0].content[4].value = self.currentFanRpm === 0 ?
+                self.getI18nString('FAN_OFF') : self.currentFanRpm + ' RPM';
         } else {
-            uiconf.sections[0].content[4].value = 'N/A';
+            // cooling_fan dtoverlay not enabled - needs reboot after install
+            uiconf.sections[0].content[4].value = self.getI18nString('FAN_NOT_AVAILABLE') || 'Reboot required';
         }
 
         // Lid status

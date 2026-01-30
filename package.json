@@ -1,6 +1,6 @@
 {
   "name": "argon_one_up",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "UPS battery monitoring, fan control, and power management for Argon ONE UP case",
   "main": "index.js",
   "scripts": {
@@ -22,7 +22,7 @@
     ],
     "has_configuration": true,
     "details": "Provides UPS battery monitoring, automatic fan control, power button handling, and lid close detection for Argon ONE UP case. Supports Raspberry Pi 4 and Pi 5. Configures EEPROM PSU_MAX_CURRENT for proper UPS operation on Pi 5.",
-    "changelog": "1.1.0: Keyboard handler with configurable volume (off by default for triggerhappy), custom script support, brightness, battery key. 1.0.1: Config persistence fix, UI load from disk, EEPROM/type coercion. 1.0.0: Initial release"
+    "changelog": "1.1.1: Fix CPU temp/fan speed display using Pi 5 native PWM fan (dtoverlay=cooling_fan). 1.1.0: Keyboard handler with configurable volume (off by default for triggerhappy), custom script support, brightness, battery key. 1.0.1: Config persistence fix, UI load from disk, EEPROM/type coercion. 1.0.0: Initial release"
   },
   "engines": {
     "node": ">=20",

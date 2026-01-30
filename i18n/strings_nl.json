@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "CPU-temperatuur",
   "FAN_SPEED": "Ventilatorsnelheid",
   "FAN_OFF": "Uit",
+  "FAN_NOT_CONTROLLABLE": "Hardware gestuurd",
+  "FAN_NOT_AVAILABLE": "Herstart vereist",
   "LID_STATUS": "Dekselstatus",
   "LID_OPEN": "Open",
   "LID_CLOSED": "Gesloten",

@@ -57,6 +57,15 @@ add_boot_param "dtparam=pciex1_gen" "dtparam=pciex1_gen=3"
 add_boot_param "usb_max_current_enable" "usb_max_current_enable=1"
 add_boot_param "dtparam=ant2" "dtparam=ant2"
 
+# Pi 5 PWM fan control (Argon ONE UP uses the Pi 5's cooling_fan interface)
+# This enables the fan controller and exposes fan speed via /sys/devices/platform/cooling_fan/
+add_boot_param "dtparam=cooling_fan" "dtparam=cooling_fan"
+# Fan temperature curve (millidegrees Celsius -> PWM speed 0-255)
+add_boot_param "dtparam=fan_temp0=" "dtparam=fan_temp0=45000,fan_temp0_speed=125"
+add_boot_param "dtparam=fan_temp1=" "dtparam=fan_temp1=50000,fan_temp1_speed=175"
+add_boot_param "dtparam=fan_temp2=" "dtparam=fan_temp2=55000,fan_temp2_speed=225"
+add_boot_param "dtparam=fan_temp3=" "dtparam=fan_temp3=60000,fan_temp3_speed=250"
+
 # Load I2C kernel module
 if ! lsmod | grep -q i2c_dev; then
     modprobe i2c-dev

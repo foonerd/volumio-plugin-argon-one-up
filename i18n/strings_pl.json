@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "Temperatura CPU",
   "FAN_SPEED": "Predkosc wentylatora",
   "FAN_OFF": "Wylaczony",
+  "FAN_NOT_CONTROLLABLE": "Sterowany sprzetowo",
+  "FAN_NOT_AVAILABLE": "Wymagany restart",
   "LID_STATUS": "Stan pokrywy",
   "LID_OPEN": "Otwarta",
   "LID_CLOSED": "Zamknieta",

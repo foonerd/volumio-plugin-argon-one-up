@@ -16,6 +16,8 @@
   "CPU_TEMPERATURE": "CPU温度",
   "FAN_SPEED": "ファン速度",
   "FAN_OFF": "オフ",
+  "FAN_NOT_CONTROLLABLE": "ハードウェア制御",
+  "FAN_NOT_AVAILABLE": "再起動が必要",
   "LID_STATUS": "蓋の状態",
   "LID_OPEN": "開",
   "LID_CLOSED": "閉",
